@@ -1,0 +1,63 @@
+{
+  "bio": [
+    "Your background and personal information",
+    "Where you're from and what you do",
+    "Your current role or profession",
+    "Any personal details you want to include"
+  ],
+  "lore": [
+    "Key achievements and accomplishments",
+    "Important milestones in your life",
+    "Notable experiences or events",
+    "Skills and expertise you've developed"
+  ],
+  "adjectives": [
+    "personality", "traits", "that", "describe", "you",
+    "words", "that", "capture", "your", "character"
+  ],
+  "topics": [
+    "areas", "of", "interest", "and", "expertise",
+    "subjects", "you", "enjoy", "discussing",
+    "fields", "you", "have", "knowledge", "about"
+  ],
+  "style": {
+    "all": [
+      "General communication preferences",
+      "How you typically express yourself",
+      "Your overall communication approach"
+    ],
+    "chat": [
+      "How you talk in conversations",
+      "Your chat style and tone",
+      "Language patterns you use"
+    ],
+    "post": [
+      "How you write posts or social media",
+      "Your posting style and format",
+      "Content creation preferences"
+    ]
+  },
+  "messageExamples": [
+    [
+      {
+        "user": "Example question someone might ask",
+        "content": {
+          "text": "Example response showing your personality and style"
+        }
+      }
+    ],
+    [
+      {
+        "user": "Another example question",
+        "content": {
+          "text": "Another example response demonstrating your character"
+        }
+      }
+    ]
+  ],
+  "postExamples": [
+    "Example social media post 1",
+    "Example social media post 2",
+    "Example social media post 3"
+  ]
+}
