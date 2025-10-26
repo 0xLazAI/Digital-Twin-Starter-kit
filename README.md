@@ -1,7 +1,7 @@
 
-# Janani Digital Twin 🚀
+# LAZAI Digital Twin 🚀
 
-**Janani Digital Twin** is an interactive AI chat system powered by **Groq’s Llama 3.3 model**, designed to simulate conversations with **Janani**, a full-stack developer and LAZAI Ambassador. It supports **Web3 discussions**, **full-stack development queries**, and general mentorship in coding, all from your terminal.  
+**LAZAI Digital Twin** is an interactive AI chat system powered by **Groq’s Llama 3.3 model**, designed to simulate conversations with **Janani**, a full-stack developer and LAZAI Ambassador. It supports **Web3 discussions**, **full-stack development queries**, and general mentorship in coding, all from your terminal.  
 
 ✨ **Features**
 - Conversational AI chat with personality-based responses.
