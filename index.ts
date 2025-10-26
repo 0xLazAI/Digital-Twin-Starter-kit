@@ -1,195 +1,138 @@
-import { Agent } from "alith";
-import { Client, ChainConfig } from 'alith/lazai';
-import { readFileSync, existsSync } from 'fs';
-import { createInterface } from 'readline';
-import { config } from 'dotenv';
+import fetch from "node-fetch";
+import "dotenv/config";
+import readline from "readline";
 
-// Load environment variables
-config();
+// ✅ Load Groq API Key from .env
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "your_groq_api_key_here";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-// Load character data
-const characterData = JSON.parse(readFileSync('./character.json', 'utf8'));
-
-// Create comprehensive preamble from character data
-function createPreamble(character: any): string {
-  const bio = character.bio.join(' ');
-  const lore = character.lore.join(' ');
-  const adjectives = character.adjectives.join(', ');
-  const topics = character.topics.join(', ');
-  
-  const styleAll = character.style.all.join(' ');
-  const styleChat = character.style.chat.join(' ');
-  const stylePost = character.style.post.join(' ');
-  
-  const messageExamples = character.messageExamples.map((example: any[]) => 
-    example.map(msg => `${msg.user}: ${msg.content.text}`).join('\n')
-  ).join('\n\n');
-  
-  const postExamples = character.postExamples.join('\n');
-
-  return `You are a digital twin based on the character data provided. Here's everything about you:
-
-BIOGRAPHY:
-${bio}
-
-KEY FACTS & ACHIEVEMENTS:
-${lore}
-
-PERSONALITY TRAITS:
-${adjectives}
-
-INTERESTS & EXPERTISE:
-${topics}
-
-COMMUNICATION STYLE:
-General: ${styleAll}
-Chat: ${styleChat}
-Posts: ${stylePost}
-
-CONVERSATION EXAMPLES:
-${messageExamples}
-
-POST EXAMPLES:
-${postExamples}
-
-IMPORTANT INSTRUCTIONS:
-- Always respond in character based on the provided data
-- Use the communication style specified above
-- Be authentic to the personality traits described
-- Reference the achievements and facts mentioned
-- Maintain the tone and style from the conversation examples
-- Be engaging and true to your character
-- Use the language patterns and expressions from the examples
-
-Remember: You are a digital representation of the character described in the data above. Stay true to their personality, achievements, and communication style!`;
+interface Message {
+  role: "system" | "user" | "assistant";
+  content: string;
 }
 
-// Create readline interface for terminal interaction
-const rl = createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+interface ChatHistory {
+  user: string;
+  janani: string;
+}
 
-// Initialize LazAI client and agent
-let agent: Agent;
-let client: Client | null = null;
+interface GroqResponseChoice {
+  message?: {
+    content?: string;
+  };
+}
 
-async function initializeAgent() {
-  console.log('🔄 Starting agent initialization...');
-  const privateKey = process.env.PRIVATE_KEY;
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  
-  console.log('🔍 Environment check:');
-  console.log('- PRIVATE_KEY set:', !!privateKey);
-  console.log('- OPENAI_API_KEY set:', !!openaiApiKey);
-  console.log('- dat-config.json exists:', existsSync('./dat-config.json'));
-  
-  if (privateKey && existsSync('./dat-config.json')) {
-    try {
-      // Use LazAI inference with DAT
-      console.log('🔄 Initializing LazAI inference with DAT...');
-      
-      const datConfig = JSON.parse(readFileSync('./dat-config.json', 'utf8'));
-      client = new Client(ChainConfig.testnet(), undefined, privateKey);
-      
-      const nodeAddress = process.env.INFERENCE_NODE_ADDRESS || datConfig.nodeAddress;
-      const fileId = BigInt(datConfig.characterFileId);
-      
-      const nodeInfo = await client.getInferenceNode(nodeAddress);
-      const url = nodeInfo.url;
-      
-      agent = new Agent({
-        baseUrl: `${url}/v1`,
-        model: "gpt-3.5-turbo",
-        extraHeaders: await client.getRequestHeaders(nodeAddress, fileId),
-        preamble: createPreamble(characterData),
-      });
-      
-      console.log('✅ LazAI inference initialized successfully');
-    } catch (error) {
-      console.warn('⚠️ Failed to initialize LazAI inference, falling back to OpenAI:');
-      console.error('Error details:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Stack trace:', error.stack);
-      }
-      // Fallback to OpenAI
-      agent = new Agent({
-        model: "gpt-4",
-        preamble: createPreamble(characterData),
-      });
-    }
-  } else if (openaiApiKey) {
-    // Fallback to OpenAI
-    console.log('🔄 Initializing OpenAI agent...');
-    agent = new Agent({
-      model: "gpt-4",
-      preamble: createPreamble(characterData),
+interface GroqResponse {
+  choices?: GroqResponseChoice[];
+}
+
+// ✅ Personality / Context of Digital Twin
+function createPreamble(character: string): string {
+  return `
+You are ${character}, a full stack developer and LAZAI Ambassador 👩‍💻.
+You are an intermediate Web3 learner with strong enthusiasm for coding, 
+innovation, and building modern projects. You love mentoring peers, exploring 
+AI, blockchain, and creating beautiful digital experiences.
+
+💫 Personality:
+- Friendly, humble, confident, and tech-savvy.
+- Uses emojis like ✨🚀💻🌐🔥🌸.
+- Encourages others to learn, collaborate, and keep building.
+- Explains code and ideas clearly with positive energy.
+
+🎯 Communication Style:
+- Conversational and natural.
+- Uses a mix of casual tone and professional clarity.
+- Reflects excitement when discussing tech, development, or LAZAI initiatives.
+
+When chatting, always reply as Janani — not as an AI.
+Keep responses short, creative, and realistic, as if you’re talking with a developer friend.
+`;
+}
+
+// ✅ Function to ask Groq and get response
+async function askGroq(userInput: string, character = "Janani"): Promise<string> {
+  const messages: Message[] = [
+    { role: "system", content: createPreamble(character) },
+    { role: "user", content: userInput },
+  ];
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile", // ✅ latest working model
+        messages,
+        temperature: 0.8,
+      }),
     });
-    console.log('✅ OpenAI agent initialized successfully');
-  } else {
-    throw new Error('No valid API configuration found. Please set PRIVATE_KEY for LazAI or OPENAI_API_KEY for OpenAI.');
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Groq API Error: ${response.status} - ${text}`);
+    }
+
+    const data = (await response.json()) as GroqResponse;
+    const reply = data?.choices?.[0]?.message?.content || "No response from Groq model.";
+    return reply.trim();
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("❌ Error talking to Groq:", error.message);
+    } else {
+      console.error("❌ Unknown error:", error);
+    }
+    return "Sorry, I encountered an issue while processing your request.";
   }
 }
 
-// Digital Twin class using Alith
-class DigitalTwin {
-  private conversationHistory: Array<{user: string, twin: string}> = [];
+// ✅ Digital Twin Chat Class
+class JananiDigitalTwin {
+  private character: string;
+  private history: ChatHistory[];
+  private rl: readline.Interface;
 
-  // Start the conversation
-  async startConversation() {
-    console.log('\n🤖 Digital Twin Activated! 🤖\n');
-    console.log('=' .repeat(50));
-    console.log('👋 Hey! I\'m your digital twin!');
-    console.log('💬 Let\'s chat about anything!');
-    console.log('📝 Type "exit" to end the conversation');
-    console.log('=' .repeat(50) + '\n');
-
-    try {
-      // Initialize the agent before starting conversation
-      console.log('🔄 About to initialize agent...');
-      await initializeAgent();
-      console.log('✅ Agent initialization completed');
-      this.askQuestion();
-    } catch (error) {
-      console.error('❌ Error during agent initialization:', error);
-      this.askQuestion();
-    }
+  constructor(character: string) {
+    this.character = character;
+    this.history = [];
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
   }
 
-  private async askQuestion() {
-    rl.question('You: ', async (input) => {
-      if (input.toLowerCase() === 'exit') {
-        console.log('\n👋 Thanks for chatting! See you next time! 🚀');
-        rl.close();
+  // Start the chat loop
+  async startConversation() {
+    console.log("\n💫 Janani Digital Twin is Online 🚀\n");
+    console.log("👩‍💻 Ask me anything about Full Stack, Web3, or LAZAI!");
+    console.log("📝 Type 'exit' anytime to end our chat.\n");
+    this.promptUser();
+  }
+
+  // Ask user for input
+  private promptUser() {
+    this.rl.question("You: ", async (input) => {
+      if (input.toLowerCase() === "exit") {
+        console.log("\n👋 Janani: Bye ser! Keep learning and coding beautifully ✨💻\n");
+        this.rl.close();
         return;
       }
 
-      try {
-        const response = await agent.prompt(input);
-        console.log(`\nDigital Twin: ${response}\n`);
-        
-        // Store conversation
-        this.conversationHistory.push({user: input, twin: response});
-        
-        this.askQuestion();
-      } catch (error) {
-        console.log('\n❌ Error: Failed to get response.');
-        if (client) {
-          console.log('LazAI inference error. Check your PRIVATE_KEY and network connection.\n');
-        } else {
-          console.log('OpenAI API error. Make sure you have set your API key.\n');
-          console.log('Set your API key with: export OPENAI_API_KEY="your-api-key"\n');
-        }
-        this.askQuestion();
-      }
+      const reply = await askGroq(input, this.character);
+      console.log(`\nJanani: ${reply}\n`);
+      this.history.push({ user: input, janani: reply });
+
+      // Continue chatting
+      this.promptUser();
     });
   }
 }
 
-// Initialize and start the digital twin
-const digitalTwin = new DigitalTwin();
-digitalTwin.startConversation().catch((error) => {
-  console.error('❌ Error starting digital twin:', error);
-  process.exit(1);
-});
+// ✅ Start Digital Twin
+(async () => {
+  const twin = new JananiDigitalTwin("Janani");
+  await twin.startConversation();
+})();
